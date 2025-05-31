@@ -52,6 +52,15 @@ fn trimOption(arg: [:0]const u8) [:0]const u8 {
         return arg[1..];
 }
 
+pub const ParseError = error{
+    InvalidOption,
+    MissingOptionArgument,
+    ExpectedUnsignedArgument,
+    ExpectedSignedArgument,
+    InvalidColorizeMode,
+    InvalidFileArguments,
+};
+
 fn parseOption(arg: [:0]const u8) !CLOptionKind {
     if (arg.len == 1) {
         switch (arg[0]) {
@@ -74,13 +83,13 @@ fn parseOption(arg: [:0]const u8) !CLOptionKind {
             's' => return .seek,
             'u' => return .uppercase,
             'v' => return .version,
-            else => return error.InvalidOption,
+            else => return ParseError.InvalidOption,
         }
     } else {
         if (long_option_map.get(arg)) |option|
             return option
         else
-            return error.InvalidOption;
+            return ParseError.InvalidOption;
     }
 }
 
@@ -106,7 +115,7 @@ const SeekOffset = union(SeekOffsetKind) {
     relative: i32,
 };
 
-const CLOptions = struct {
+pub const CLOptions = struct {
     autoskip: bool = false,
     bits: bool = false,
     columns: u32 = 16,
@@ -130,7 +139,22 @@ const CLOptions = struct {
     out_file: ?[]u8 = null,
 };
 
-pub fn parse(arg_strs: [][:0]u8) !CLOptions {
+fn getOptionArgument(arg_strs: [][:0]u8, idx: *usize) ![:0]u8 {
+    if (idx.* < arg_strs.len - 1) {
+        idx.* += 1;
+        return arg_strs[idx.*];
+    } else return ParseError.MissingOptionArgument;
+}
+
+fn parseUnsigned(arg: [:0]u8) !u32 {
+    return std.fmt.parseInt(u32, arg, 10) catch return ParseError.ExpectedUnsignedArgument;
+}
+
+fn parseSigned(arg: [:0]u8) !i32 {
+    return std.fmt.parseInt(i32, arg, 10) catch return ParseError.ExpectedSignedArgument;
+}
+
+pub fn parse(arg_strs: [][:0]u8) ParseError!CLOptions {
     var options = CLOptions{};
 
     var idx: usize = 0;
@@ -143,57 +167,50 @@ pub fn parse(arg_strs: [][:0]u8) !CLOptions {
                 .autoskip => options.autoskip = true,
                 .bits => options.bits = true,
                 .columns => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
-                    options.columns = std.fmt.parseInt(u32, next, 10) catch return error.ExpectedUnsigned;
-                    idx += 1;
+                    const next = try getOptionArgument(arg_strs, &idx);
+                    options.columns = try parseUnsigned(next);
                 },
                 .capitalize => options.capitalize = true,
                 .decimal_offsets => options.decimal_offsets = true,
                 .ebcdic => options.ebcdic = true,
                 .little_endian => options.little_endian = true,
                 .group_size => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
-                    options.group_size = std.fmt.parseInt(u32, next, 10) catch return error.ExpectedUnsigned;
-                    idx += 1;
+                    const next = try getOptionArgument(arg_strs, &idx);
+                    options.group_size = try parseUnsigned(next);
                 },
                 .help => options.help = true,
                 .include => options.include = true,
                 .length => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
-                    options.length = std.fmt.parseInt(u32, next, 10) catch return error.ExpectedUnsigned;
-                    idx += 1;
+                    const next = try getOptionArgument(arg_strs, &idx);
+                    options.length = try parseUnsigned(next);
                 },
                 .name => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
+                    const next = try getOptionArgument(arg_strs, &idx);
                     if (next.len == 0 or next[0] == '-')
-                        return error.MissingOptionArgument;
+                        return ParseError.MissingOptionArgument;
                     options.name = next;
-                    idx += 1;
                 },
                 .offset => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
-                    options.offset = std.fmt.parseInt(i32, next, 10) catch return error.ExpectedSigned;
-                    idx += 1;
+                    const next = try getOptionArgument(arg_strs, &idx);
+                    options.offset = try parseSigned(next);
                 },
                 .postscript => options.postscript = true,
                 .revert => options.revert = true,
                 .colorize_mode => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
+                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return ParseError.MissingOptionArgument;
                     if (when_map.get(next)) |value|
                         options.colorize_mode = value
                     else
-                        return error.InvalidColorizeMode;
+                        return ParseError.InvalidColorizeMode;
                 },
                 .seek => {
-                    const next = if (idx < arg_strs.len - 1) arg_strs[idx + 1] else return error.MissingOptionArgument;
+                    const next = try getOptionArgument(arg_strs, &idx);
                     if (next[0] == '+' or next[0] == '-') {
-                        const value = std.fmt.parseInt(i32, next, 10) catch return error.ExpectedSigned;
+                        const value = try parseSigned(next);
                         options.seek = SeekOffset{ .relative = value };
-                        idx += 1;
                     } else {
-                        const value = std.fmt.parseInt(u32, next, 10) catch return error.ExpectedUnsigned;
+                        const value = try parseUnsigned(next);
                         options.seek = SeekOffset{ .absolute = value };
-                        idx += 1;
                     }
                 },
                 .uppercase => options.uppercase = true,
@@ -205,7 +222,7 @@ pub fn parse(arg_strs: [][:0]u8) !CLOptions {
             else if (options.out_file == null)
                 options.out_file = arg_str
             else
-                return error.InvalidFileArguments;
+                return ParseError.InvalidFileArguments;
         }
     }
 
