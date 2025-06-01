@@ -1,5 +1,6 @@
 const std = @import("std");
 const clap = @import("clap.zig");
+const cfg = @import("config.zig");
 
 const major: u32 = 0;
 const minor: u32 = 0;
@@ -86,6 +87,10 @@ pub fn main() !void {
         try stdout_bw.flush();
         return;
     }
+
+    const config = try cfg.Config.init(allocator, options);
+    try stdout.print("{}\n", .{config});
+    try stdout_bw.flush();
 
     const bytes_read = stdin.readAll(&buf) catch |err| return err;
 

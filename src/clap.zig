@@ -93,7 +93,7 @@ fn parseOption(arg: [:0]const u8) !CLOptionKind {
     }
 }
 
-const When = enum {
+pub const When = enum {
     always,
     auto,
     never,
@@ -110,7 +110,7 @@ const SeekOffsetKind = enum {
     relative,
 };
 
-const SeekOffset = union(SeekOffsetKind) {
+pub const SeekOffset = union(SeekOffsetKind) {
     absolute: u32,
     relative: i32,
 };
@@ -118,12 +118,12 @@ const SeekOffset = union(SeekOffsetKind) {
 pub const CLOptions = struct {
     autoskip: bool = false,
     bits: bool = false,
-    columns: u32 = 16,
+    columns: ?u32 = null,
     capitalize: bool = false,
     decimal_offsets: bool = false,
     ebcdic: bool = false,
     little_endian: bool = false,
-    group_size: u32 = 2,
+    group_size: ?u32 = null,
     help: bool = false,
     include: bool = false,
     length: ?u32 = null,
