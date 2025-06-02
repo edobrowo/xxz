@@ -37,12 +37,6 @@ pub fn main() !void {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    const stdin_file = std.io.getStdIn();
-    var stdin_br = std.io.bufferedReader(stdin_file.reader());
-    const stdin = stdin_br.reader();
-
-    var buf: [1024]u8 = undefined;
-
     const stderr_file = std.io.getStdErr();
     var stderr_bw = std.io.bufferedWriter(stderr_file.writer());
     const stderr = stderr_bw.writer();
@@ -88,11 +82,67 @@ pub fn main() !void {
         return;
     }
 
-    const config = try cfg.Config.init(allocator, options);
-    try stdout.print("{}\n", .{config});
-    try stdout_bw.flush();
+    const config = cfg.Config.init(allocator, options) catch |err| {
+        switch (err) {
+            error.IncompatableOptions => {
+                try print_usage_error(stderr, "only one of -b, -e, -u, -p, -i can be used\n");
+            },
+            else => {
+                try print_usage_error(stderr, "unexpected error\n");
+            },
+        }
+        try stderr_bw.flush();
+        return;
+    };
+    defer config.deinit(allocator);
 
-    const bytes_read = stdin.readAll(&buf) catch |err| return err;
+    const in_file = if (options.in_file) |path|
+        std.fs.cwd().openFile(path, .{}) catch |err| {
+            switch (err) {
+                std.fs.File.OpenError.FileNotFound => {
+                    try stderr.print("Error: input file not found: {s}\n", .{path});
+                },
+                std.fs.File.OpenError.AccessDenied => {
+                    try stderr.print("Error: invalid input file permissions: {s}\n", .{path});
+                },
+                else => try stderr.print("Error: could not open input file: {s}\n", .{path}),
+            }
+            try stderr_bw.flush();
+            return;
+        }
+    else
+        std.io.getStdIn();
+    const should_close_in_file = options.in_file != null;
+
+    var in_br = std.io.bufferedReader(in_file.reader());
+    const in_stream = in_br.reader();
+
+    const out_file = if (options.out_file) |path|
+        std.fs.cwd().openFile(path, std.fs.File.OpenFlags{
+            .mode = std.fs.File.OpenMode.write_only,
+        }) catch |err| {
+            switch (err) {
+                std.fs.File.OpenError.FileNotFound => {
+                    try stderr.print("Error: output file not found: {s}\n", .{path});
+                },
+                std.fs.File.OpenError.AccessDenied => {
+                    try stderr.print("Error: invalid output file permissions: {s}\n", .{path});
+                },
+                else => try stderr.print("Error: could not open output file: {s}\n", .{path}),
+            }
+            try stderr_bw.flush();
+            return;
+        }
+    else
+        std.io.getStdOut();
+    const should_close_out_file = options.out_file != null;
+
+    var out_br = std.io.bufferedWriter(out_file.writer());
+    const out_stream = out_br.writer();
+
+    var buf: [1024]u8 = undefined;
+
+    const bytes_read = in_stream.readAll(&buf) catch |err| return err;
 
     for (0..bytes_read) |i| {
         const byte = buf[i];
@@ -100,9 +150,15 @@ pub fn main() !void {
         const high: u8 = (byte & 0xF0) >> 4;
         const low: u8 = byte & 0x0F;
 
-        try stdout.print("0x{c}{c},", .{ hex_lowercase[high], hex_lowercase[low] });
+        try out_stream.print("0x{c}{c},", .{ hex_lowercase[high], hex_lowercase[low] });
     }
-    try stdout.print("\n", .{});
+    try out_stream.print("\n", .{});
 
-    try stdout_bw.flush();
+    try out_br.flush();
+
+    if (should_close_in_file)
+        in_file.close();
+
+    if (should_close_out_file)
+        out_file.close();
 }

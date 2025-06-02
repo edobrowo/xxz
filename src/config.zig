@@ -160,7 +160,7 @@ pub const Config = struct {
         return config;
     }
 
-    pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+    pub fn deinit(self: *const Self, allocator: std.mem.Allocator) void {
         allocator.free(self.c_include_variable_name);
     }
 };
