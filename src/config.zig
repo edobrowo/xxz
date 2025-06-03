@@ -1,37 +1,6 @@
 const std = @import("std");
 const clap = @import("clap.zig");
-
-const Mode = enum {
-    forward,
-    reverse,
-};
-
-const DisplayStyle = enum {
-    normal,
-    postscript,
-    c_include,
-    little_endian,
-};
-
-const DigitEncoding = enum {
-    hex,
-    binary,
-};
-
-const TextEncoding = enum {
-    ascii,
-    ebcdic,
-};
-
-const OffsetStyle = enum {
-    hex,
-    decimal,
-};
-
-const Case = enum {
-    upper,
-    lower,
-};
+const com = @import("common.zig");
 
 fn areOptionsCompatible(cl_options: clap.CLOptions) bool {
     var incompat_count: u32 = @intFromBool(cl_options.bits);
@@ -43,11 +12,11 @@ fn areOptionsCompatible(cl_options: clap.CLOptions) bool {
     return incompat_count < 2;
 }
 
-fn resolveMode(cl_options: clap.CLOptions) Mode {
-    return if (cl_options.revert) Mode.reverse else Mode.forward;
+fn resolveMode(cl_options: clap.CLOptions) com.Mode {
+    return if (cl_options.revert) .reverse else .forward;
 }
 
-fn resolveDisplayStyle(cl_options: clap.CLOptions) DisplayStyle {
+fn resolveDisplayStyle(cl_options: clap.CLOptions) com.DisplayStyle {
     return if (cl_options.postscript)
         .postscript
     else if (cl_options.include)
@@ -58,19 +27,19 @@ fn resolveDisplayStyle(cl_options: clap.CLOptions) DisplayStyle {
         .normal;
 }
 
-fn resolveDigitEncoding(cl_options: clap.CLOptions) DigitEncoding {
+fn resolveDigitEncoding(cl_options: clap.CLOptions) com.DigitEncoding {
     return if (cl_options.bits) .binary else .hex;
 }
 
-fn resolveTextEncoding(cl_options: clap.CLOptions) TextEncoding {
+fn resolveTextEncoding(cl_options: clap.CLOptions) com.TextEncoding {
     return if (cl_options.ebcdic) .ebcdic else .ascii;
 }
 
-fn resolveOffsetStyle(cl_options: clap.CLOptions) OffsetStyle {
+fn resolveOffsetStyle(cl_options: clap.CLOptions) com.OffsetStyle {
     return if (cl_options.decimal_offsets) .decimal else .hex;
 }
 
-fn resolveCase(cl_options: clap.CLOptions, style: DisplayStyle) Case {
+fn resolveCase(cl_options: clap.CLOptions, style: com.DisplayStyle) com.Case {
     if ((style == .c_include and cl_options.capitalize) or
         (style != .c_include and cl_options.uppercase))
         return .upper
@@ -78,7 +47,7 @@ fn resolveCase(cl_options: clap.CLOptions, style: DisplayStyle) Case {
         return .lower;
 }
 
-fn defaultOctetsPerLine(style: DisplayStyle) u32 {
+fn defaultOctetsPerLine(style: com.DisplayStyle) u32 {
     return switch (style) {
         .normal => 16,
         .postscript => 30,
@@ -87,7 +56,7 @@ fn defaultOctetsPerLine(style: DisplayStyle) u32 {
     };
 }
 
-fn defaultOctetsPerGroup(style: DisplayStyle) u32 {
+fn defaultOctetsPerGroup(style: com.DisplayStyle) u32 {
     return switch (style) {
         .normal => 2,
         .postscript => 2,
@@ -115,23 +84,23 @@ fn resolveVariableName(allocator: std.mem.Allocator, cl_options: clap.CLOptions)
 pub const Config = struct {
     const Self = @This();
 
-    mode: Mode,
+    mode: com.Mode,
 
-    read_start: clap.SeekOffset,
+    read_start: com.SeekOffset,
     read_length: ?u32,
 
-    display_style: DisplayStyle,
-    digit_encoding: DigitEncoding,
-    text_encoding: TextEncoding,
-    offset_style: OffsetStyle,
+    display_style: com.DisplayStyle,
+    digit_encoding: com.DigitEncoding,
+    text_encoding: com.TextEncoding,
+    offset_style: com.OffsetStyle,
 
-    case: Case,
+    case: com.Case,
     octets_per_line: u32,
     octets_per_group: u32,
     displayed_offset: i32,
     autoskip: bool,
     c_include_variable_name: []u8,
-    colorize_mode: clap.When,
+    colorize_mode: com.When,
 
     pub fn init(allocator: std.mem.Allocator, cl_options: clap.CLOptions) !Config {
         var config: Config = undefined;
@@ -141,7 +110,7 @@ pub const Config = struct {
 
         config.mode = resolveMode(cl_options);
 
-        config.read_start = cl_options.seek orelse clap.SeekOffset{ .absolute = 0 };
+        config.read_start = cl_options.seek orelse com.SeekOffset{ .absolute = 0 };
         config.read_length = cl_options.length;
 
         config.display_style = resolveDisplayStyle(cl_options);

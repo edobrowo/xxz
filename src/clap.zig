@@ -1,4 +1,5 @@
 const std = @import("std");
+const com = @import("common.zig");
 
 const CLOptionKind = enum {
     autoskip,
@@ -93,27 +94,11 @@ fn parseOption(arg: [:0]const u8) !CLOptionKind {
     }
 }
 
-pub const When = enum {
-    always,
-    auto,
-    never,
-};
-
-const when_map = std.StaticStringMap(When).initComptime(.{
+const when_map = std.StaticStringMap(com.When).initComptime(.{
     .{ "always", .always },
     .{ "auto", .auto },
     .{ "never", .never },
 });
-
-const SeekOffsetKind = enum {
-    absolute,
-    relative,
-};
-
-pub const SeekOffset = union(SeekOffsetKind) {
-    absolute: u32,
-    relative: i32,
-};
 
 pub const CLOptions = struct {
     autoskip: bool = false,
@@ -131,8 +116,8 @@ pub const CLOptions = struct {
     offset: ?i32 = null,
     postscript: bool = false,
     revert: bool = false,
-    colorize_mode: When = .auto,
-    seek: ?SeekOffset = null,
+    colorize_mode: com.When = .auto,
+    seek: ?com.SeekOffset = null,
     uppercase: bool = false,
     version: bool = false,
     in_file: ?[]u8 = null,
@@ -207,10 +192,10 @@ pub fn parse(arg_strs: [][:0]u8) ParseError!CLOptions {
                     const next = try getOptionArgument(arg_strs, &idx);
                     if (next[0] == '+' or next[0] == '-') {
                         const value = try parseSigned(next);
-                        options.seek = SeekOffset{ .relative = value };
+                        options.seek = com.SeekOffset{ .relative = value };
                     } else {
                         const value = try parseUnsigned(next);
-                        options.seek = SeekOffset{ .absolute = value };
+                        options.seek = com.SeekOffset{ .absolute = value };
                     }
                 },
                 .uppercase => options.uppercase = true,
