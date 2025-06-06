@@ -23,9 +23,8 @@ pub fn printVersion(writer: anytype) !void {
     try writer.print(version_str, .{ major, minor, patch });
 }
 
-pub fn printUsageError(writer: anytype, err: []const u8) !void {
-    try writer.print("Error: {s}.\n", .{err});
-    try printUsage(writer);
+pub fn printError(writer: anytype, err: []const u8) !void {
+    try writer.print("xxz: {s}.\n", .{err});
 }
 
 pub fn printOptionsError(writer: anytype, err: clap.ParseError) !void {
@@ -38,14 +37,17 @@ pub fn printOptionsError(writer: anytype, err: clap.ParseError) !void {
         clap.ParseError.InvalidFileArguments => "invalid in/out file arguments",
     };
 
-    try printUsageError(writer, msg);
+    try printError(writer, msg);
 }
 
 pub fn printConfigError(writer: anytype, err: anytype) !void {
-    if (err == error.IncompatableOptions)
-        try printUsageError(writer, "only one of -b, -e, -u, -p, -i can be used\n")
-    else
-        try printUsageError(writer, "unexpected error\n");
+    const msg = switch (err) {
+        error.IncompatableOptions => "only one of -b, -e, -p, -i can be used",
+        error.InvalidColumnRange => "invalid number of columns (max. 256)",
+        else => "unexpected error",
+    };
+
+    try printError(writer, msg);
 }
 
 pub fn printFileOpenError(writer: anytype, path: []u8, err: std.fs.File.OpenError) !void {

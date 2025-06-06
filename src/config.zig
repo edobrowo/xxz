@@ -5,11 +5,14 @@ const com = @import("common.zig");
 fn areOptionsCompatible(cl_options: clap.CLOptions) bool {
     var incompat_count: u32 = @intFromBool(cl_options.bits);
     incompat_count += @intFromBool(cl_options.little_endian);
-    incompat_count += @intFromBool(cl_options.uppercase);
     incompat_count += @intFromBool(cl_options.postscript);
     incompat_count += @intFromBool(cl_options.include);
 
     return incompat_count < 2;
+}
+
+fn isColumnCountInRange(columns: u32) bool {
+    return columns <= Config.max_octets_per_line;
 }
 
 fn resolveMode(cl_options: clap.CLOptions) com.Mode {
@@ -40,8 +43,7 @@ fn resolveOffsetStyle(cl_options: clap.CLOptions) com.OffsetStyle {
 }
 
 fn resolveCase(cl_options: clap.CLOptions, style: com.DisplayStyle) com.Case {
-    if ((style == .c_include and cl_options.capitalize) or
-        (style != .c_include and cl_options.uppercase))
+    if ((style == .c_include and cl_options.capitalize) or cl_options.uppercase)
         return .upper
     else
         return .lower;
@@ -109,6 +111,9 @@ pub const Config = struct {
 
         if (!areOptionsCompatible(cl_options))
             return error.IncompatableOptions;
+
+        if (cl_options.columns != null and !isColumnCountInRange(cl_options.columns.?))
+            return error.InvalidColumnRange;
 
         config.mode = resolveMode(cl_options);
 
