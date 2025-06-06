@@ -84,6 +84,8 @@ fn resolveVariableName(allocator: std.mem.Allocator, cl_options: clap.CLOptions)
 pub const Config = struct {
     const Self = @This();
 
+    pub const max_octets_per_line: u32 = 256;
+
     mode: com.Mode,
 
     read_start: com.SeekOffset,
